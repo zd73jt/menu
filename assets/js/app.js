@@ -921,38 +921,63 @@
         });
     }
 
-    // Optional fallback: block double-tap-to-zoom on old iOS where CSS touch-action isn't supported.
-    // This preserves pinch-zoom while preventing accidental double-tap zooms.
+    // Optional fallback: block double-tap-to-zoom on touch devices.
+    // Multi-touch is ignored, so pinch-zoom remains available.
     (function addDoubleTapBlocker() {
-        try {
-            const touchActionSupported = window.CSS && typeof CSS.supports === 'function' && CSS.supports('touch-action', 'manipulation');
-            if (touchActionSupported) return; // modern browsers handle it via CSS
-
-            let lastTouchEnd = 0;
-            document.addEventListener('touchend', function (e) {
-                const now = Date.now();
-                if (now - lastTouchEnd <= 300) {
-                    // double-tap detected — prevent default to stop zoom
-                    e.preventDefault();
-                }
-                lastTouchEnd = now;
-            }, { passive: false });
-        } catch (err) {
-            // fail silently — this script is only an optional enhancement
+        let lastTapTime = 0;
+        let lastTapX = 0;
+        let lastTapY = 0;
+        let activeTouchMoved = false;
+        let activeTapBlocked = false;
+        function isTextEditable(target) {
+            return Boolean(target?.closest?.('input, textarea, select, [contenteditable="true"]'));
         }
+        function isNearPreviousTap(touch) {
+            const now = Date.now();
+            const x = touch.clientX;
+            const y = touch.clientY;
+            return now - lastTapTime < 350
+                && Math.abs(x - lastTapX) < 40
+                && Math.abs(y - lastTapY) < 40;
+        }
+        function rememberTap(touch) {
+            lastTapTime = Date.now();
+            lastTapX = touch.clientX;
+            lastTapY = touch.clientY;
+        }
+        document.addEventListener('touchstart', function (event) {
+            activeTouchMoved = false;
+            activeTapBlocked = false;
+            if (event.touches?.length !== 1 || isTextEditable(event.target)) return;
+            if (isNearPreviousTap(event.touches[0])) {
+                activeTapBlocked = true;
+                event.preventDefault();
+            }
+        }, { passive: false });
+        document.addEventListener('touchmove', function () {
+            activeTouchMoved = true;
+        }, { passive: true });
+        document.addEventListener('touchcancel', function () {
+            activeTouchMoved = true;
+            activeTapBlocked = false;
+        }, { passive: true });
+        document.addEventListener('touchend', function (event) {
+            if (event.touches?.length || event.changedTouches?.length !== 1 || activeTouchMoved || isTextEditable(event.target)) return;
+            const touch = event.changedTouches[0];
+            if (activeTapBlocked || isNearPreviousTap(touch)) {
+                activeTapBlocked = false;
+                event.preventDefault();
+                return;
+            }
+            rememberTap(touch);
+        }, { passive: false });
+        document.addEventListener('dblclick', function (event) {
+            if (isTextEditable(event.target)) return;
+            event.preventDefault();
+        }, { passive: false });
     })();
 
 })();
-
-
-
-
-
-
-
-
-
-
 
 
 
