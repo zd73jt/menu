@@ -336,6 +336,21 @@ h1 {
     overflow: auto;
 }
 
+.custom-tag-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.custom-tag-row input {
+    min-width: 0;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 9px 10px;
+    font: inherit;
+}
+
 .tag-option {
     width: 100%;
     border: 0;
@@ -380,7 +395,8 @@ h1 {
     gap: 12px;
 }
 
-.dish-form label {
+.dish-form label,
+.dish-form-field {
     display: flex;
     flex-direction: column;
     gap: 5px;
@@ -529,7 +545,8 @@ h1 {
 }
 
 @media (max-width: 720px) {
-    .tag-add-row {
+    .tag-add-row,
+    .custom-tag-row {
         grid-template-columns: 1fr;
     }
 

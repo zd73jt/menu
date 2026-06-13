@@ -5,7 +5,6 @@
     let allProducts = [];
     let archivedDishes = [];
     let allTags = [];
-    let dishTagsById = {};
     let selectedTags = new Set();
     let selectedDishIds = new Set();
     let currentScreen = 'select';
@@ -50,6 +49,7 @@
             if (action === 'toggle-tag-dropdown') toggleTagMultiselect();
             if (action === 'select-form-tag') selectFormTag(tag);
             if (action === 'remove-form-tag') removeFormTag(tag);
+            if (action === 'add-custom-form-tag') addCustomFormTag();
             if (action === 'time-up') adjustTimePicker(15);
             if (action === 'time-down') adjustTimePicker(-15);
             if (action === 'open-tags-manage') openTagsManageScreen();
@@ -68,15 +68,17 @@
             }
         });
 
+        document.addEventListener('keydown', event => {
+            if (event.target.id === 'customTagInput' && event.key === 'Enter') {
+                event.preventDefault();
+                addCustomFormTag();
+            }
+        });
+
         document.addEventListener('submit', event => {
             if (event.target.id === 'dishForm') {
                 event.preventDefault();
                 saveDishFromForm(event.target);
-            }
-
-            if (event.target.id === 'tagForm') {
-                event.preventDefault();
-                addTagFromForm(event.target);
             }
         });
     }
@@ -103,9 +105,7 @@
         allProducts = Array.isArray(data?.products) ? data.products : [];
         archivedDishes = Array.isArray(data?.archivedDishes) ? data.archivedDishes : [];
 
-        const tagsData = normalizeTagsData(data?.tags);
-        allTags = tagsData.hasItems ? tagsData.items : collectTags([...allDishes, ...archivedDishes]);
-        dishTagsById = tagsData.dishTags;
+        allTags = collectTags([...allDishes, ...archivedDishes]);
 
         const state = data?.state || {};
         currentScreen = ALLOWED_PERSISTED_SCREENS.includes(state.screen) ? state.screen : 'select';
@@ -426,25 +426,6 @@
         `).join('');
     }
 
-    function addTagFromForm(form) {
-        const formData = new FormData(form);
-        const tag = String(formData.get('newTag') || '').trim();
-
-        if (!tag || allTags.includes(tag)) {
-            form.reset();
-            return;
-        }
-
-        allTags = [...allTags, tag];
-        selectedTags.delete(tag);
-        MenuStorage.saveTags(allTags);
-        reloadData();
-        currentScreen = 'tagsManage';
-        renderScreen();
-        renderTagsManage();
-        form.reset();
-    }
-
     function deleteTag(tag) {
         allTags = allTags.filter(item => item !== tag);
         selectedTags.delete(tag);
@@ -559,10 +540,10 @@
                     ${escapeHtml(MenuI18n.t('field.description'))}
                     <textarea name="description">${escapeHtml(dish['Опис'])}</textarea>
                 </label>
-                <label>
-                    ${escapeHtml(MenuI18n.t('tags.title'))}
+                <div class="dish-form-field">
+                    <div>${escapeHtml(MenuI18n.t('tags.title'))}</div>
                     ${renderTagMultiselect(dish)}
-                </label>
+                </div>
                 <div class="form-section-title section-title">${escapeHtml(MenuI18n.t('products.title'))}</div>
                 <div id="productRows" class="product-rows">
                     ${products.map(renderProductRow).join('')}
@@ -624,6 +605,10 @@
                     <span class="tag-caret">▾</span>
                 </div>
                 <div id="tagDropdown" class="tag-dropdown hidden">
+                    <div class="custom-tag-row">
+                        <input id="customTagInput" type="text" autocomplete="off" placeholder="${escapeHtml(MenuI18n.t('field.newTag'))}">
+                        <button class="button secondary" type="button" data-action="add-custom-form-tag">${escapeHtml(MenuI18n.t('button.addTag'))}</button>
+                    </div>
                     ${available.length ? available.map(tag => `
                         <button class="tag-option" type="button" data-action="select-form-tag" data-tag="${escapeHtml(tag)}">${escapeHtml(tag)}</button>
                     `).join('') : `<div class="tag-option empty-option">${escapeHtml(MenuI18n.t('empty.tags'))}</div>`}
@@ -633,8 +618,10 @@
     }
 
     function renderSelectedFormTag(tag) {
+        const colorIndex = Math.max(0, allTags.indexOf(tag)) % 6;
+
         return `
-            <button class="selected-form-tag tag-color-${allTags.indexOf(tag) % 6}" type="button" data-action="remove-form-tag" data-tag="${escapeHtml(tag)}">
+            <button class="selected-form-tag tag-color-${colorIndex}" type="button" data-action="remove-form-tag" data-tag="${escapeHtml(tag)}">
                 ${escapeHtml(tag)} <span>×</span>
                 <input type="hidden" name="tags" value="${escapeHtml(tag)}">
             </button>
@@ -699,12 +686,23 @@
     }
 
     function selectFormTag(tag) {
-        if (getSelectedFormTags().includes(tag)) return;
+        const normalizedTag = String(tag || '').trim();
+        if (!normalizedTag || getSelectedFormTags().includes(normalizedTag)) return;
 
         const selectedContainer = document.getElementById('selectedFormTags');
         selectedContainer?.querySelector('.tag-placeholder')?.remove();
-        selectedContainer?.insertAdjacentHTML('beforeend', renderSelectedFormTag(tag));
+        selectedContainer?.insertAdjacentHTML('beforeend', renderSelectedFormTag(normalizedTag));
         renderCurrentTagDropdown();
+    }
+
+    function addCustomFormTag() {
+        const input = document.getElementById('customTagInput');
+        const tag = String(input?.value || '').trim();
+
+        if (!tag) return;
+
+        selectFormTag(tag);
+        if (input) input.value = '';
     }
 
     function removeFormTag(tag) {
@@ -728,9 +726,15 @@
 
         if (!dropdown) return;
 
-        dropdown.innerHTML = available.length ? available.map(tag => `
-            <button class="tag-option" type="button" data-action="select-form-tag" data-tag="${escapeHtml(tag)}">${escapeHtml(tag)}</button>
-        `).join('') : `<div class="tag-option empty-option">${escapeHtml(MenuI18n.t('empty.tags'))}</div>`;
+        dropdown.innerHTML = `
+            <div class="custom-tag-row">
+                <input id="customTagInput" type="text" autocomplete="off" placeholder="${escapeHtml(MenuI18n.t('field.newTag'))}">
+                <button class="button secondary" type="button" data-action="add-custom-form-tag">${escapeHtml(MenuI18n.t('button.addTag'))}</button>
+            </div>
+            ${available.length ? available.map(tag => `
+                <button class="tag-option" type="button" data-action="select-form-tag" data-tag="${escapeHtml(tag)}">${escapeHtml(tag)}</button>
+            `).join('') : `<div class="tag-option empty-option">${escapeHtml(MenuI18n.t('empty.tags'))}</div>`}
+        `;
     }
 
     function getSelectedFormTags() {
@@ -810,48 +814,7 @@
     }
 
     function getDishTags(dish) {
-        const mappedTags = normalizeTags(dishTagsById[dish?.id]);
-        const explicitTags = normalizeTags(Array.isArray(dish?.tags) ? dish.tags : dish?.['теги']);
-        const legacyTags = allTags.filter(tag => isTrue(dish?.[tag]));
-        const tags = mappedTags.length ? mappedTags : explicitTags.length ? explicitTags : legacyTags;
-
-        return tags.filter(tag => allTags.includes(tag));
-    }
-
-    function normalizeTagsData(tags) {
-        if (Array.isArray(tags)) {
-            return { items: normalizeTags(tags), dishTags: {}, hasItems: true };
-        }
-
-        if (tags && typeof tags === 'object') {
-            const itemsSource = Object.prototype.hasOwnProperty.call(tags, 'items')
-                ? tags.items
-                : Object.prototype.hasOwnProperty.call(tags, 'list')
-                    ? tags.list
-                    : Object.prototype.hasOwnProperty.call(tags, 'tags')
-                        ? tags.tags
-                        : undefined;
-
-            return {
-                items: normalizeTags(itemsSource),
-                dishTags: normalizeDishTagsMap(tags.dishTags || tags.byDishId || tags.dishes),
-                hasItems: itemsSource !== undefined
-            };
-        }
-
-        return { items: [], dishTags: {}, hasItems: false };
-    }
-
-    function normalizeDishTagsMap(dishTags) {
-        if (!dishTags || typeof dishTags !== 'object' || Array.isArray(dishTags)) {
-            return {};
-        }
-
-        return Object.fromEntries(
-            Object.entries(dishTags)
-                .map(([dishId, tags]) => [dishId, normalizeTags(tags)])
-                .filter(([dishId]) => dishId)
-        );
+        return normalizeTags(Array.isArray(dish?.tags) ? dish.tags : dish?.['теги']);
     }
 
     function normalizeTags(tags) {
@@ -899,10 +862,6 @@
         document.getElementById(targetId).innerHTML = `<div class="error">${escapeHtml(MenuI18n.t('error.prefix'))}: ${escapeHtml(message)}</div>`;
         currentScreen = 'select';
         renderScreen();
-    }
-
-    function isTrue(value) {
-        return value === true || String(value).toUpperCase() === 'TRUE';
     }
 
     function formatDuration(value) {
@@ -963,6 +922,18 @@
     }
 
 })();
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

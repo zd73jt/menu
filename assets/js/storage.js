@@ -1,6 +1,6 @@
 window.MenuStorage = (() => {
-    const STORAGE_KEY = 'menu-pwa.database.v6';
-    const LEGACY_STORAGE_KEYS = ['menu-pwa.database.v5'];
+    const STORAGE_KEY = 'menu-pwa.database.v8';
+    const LEGACY_STORAGE_KEYS = ['menu-pwa.database.v7', 'menu-pwa.database.v6', 'menu-pwa.database.v5'];
     const DEFAULT_TAGS = [
         'сніданок',
         'вечеря',
@@ -25,18 +25,18 @@ window.MenuStorage = (() => {
     };
     const SEED_DATA = {
         dishes: [
-            createDish('omelet-z-syrom', 'Омлет з сиром', 15),
-            createDish('vivsianka-z-bananom', 'Вівсянка з бананом', 15),
-            createDish('hrechka-kurka', 'Гречка + курка', 45),
-            createDish('pasta-bolonieze', 'Паста болоньєзе', 45),
-            createDish('borshch', 'Борщ', 90),
-            createDish('sup-z-frykadelkamy', 'Суп з фрикадельками', 45),
-            createDish('shaurma', 'Шаурма', 0),
-            createDish('pitsa', 'Піца', 0),
-            createDish('syrnyky', 'Сирники', 30),
-            createDish('pelmeni', 'Пельмені', 15),
-            createDish('kartoplia-oseledets', 'Картопля + оселедець', 30),
-            createDish('rys-tunets', 'Рис + тунець', 30)
+            createDish('omelet-z-syrom', 'Омлет з сиром', 15, SEED_DISH_TAGS['omelet-z-syrom']),
+            createDish('vivsianka-z-bananom', 'Вівсянка з бананом', 15, SEED_DISH_TAGS['vivsianka-z-bananom']),
+            createDish('hrechka-kurka', 'Гречка + курка', 45, SEED_DISH_TAGS['hrechka-kurka']),
+            createDish('pasta-bolonieze', 'Паста болоньєзе', 45, SEED_DISH_TAGS['pasta-bolonieze']),
+            createDish('borshch', 'Борщ', 90, SEED_DISH_TAGS.borshch),
+            createDish('sup-z-frykadelkamy', 'Суп з фрикадельками', 45, SEED_DISH_TAGS['sup-z-frykadelkamy']),
+            createDish('shaurma', 'Шаурма', 0, SEED_DISH_TAGS.shaurma),
+            createDish('pitsa', 'Піца', 0, SEED_DISH_TAGS.pitsa),
+            createDish('syrnyky', 'Сирники', 30, SEED_DISH_TAGS.syrnyky),
+            createDish('pelmeni', 'Пельмені', 15, SEED_DISH_TAGS.pelmeni),
+            createDish('kartoplia-oseledets', 'Картопля + оселедець', 30, SEED_DISH_TAGS['kartoplia-oseledets']),
+            createDish('rys-tunets', 'Рис + тунець', 30, SEED_DISH_TAGS['rys-tunets'])
         ],
         products: [
             createProduct('prod-omelet-yaitsia', 'omelet-z-syrom', 'яйця', 3, 'шт'),
@@ -57,36 +57,15 @@ window.MenuStorage = (() => {
             createProduct('prod-rys-rys', 'rys-tunets', 'рис', 100, 'г'),
             createProduct('prod-rys-tunets', 'rys-tunets', 'тунець', 1, 'банка')
         ],
-        tags: {
-            items: DEFAULT_TAGS,
-            dishTags: SEED_DISH_TAGS
-        },
         archivedDishes: [],
         archivedProducts: [],
-        state: {
-            screen: 'select',
-            selectedDishIds: []
-        }
+        state: { screen: 'select', selectedDishIds: [] }
     };
-    function createDish(id, name, timeMinutes) {
-        return {
-            id,
-            'Страва': name,
-            'Час хв': timeMinutes,
-            'Останній раз': '',
-            'Опис': '',
-            'Фото': ''
-        };
+    function createDish(id, name, timeMinutes, tags = []) {
+        return { id, 'Страва': name, 'Час хв': timeMinutes, 'Останній раз': '', 'Опис': '', 'Фото': '', tags: normalizeTags(tags) };
     }
     function createProduct(id, dishId, productName, quantity, unit, comment = '') {
-        return {
-            id,
-            dishId,
-            'Продукт': productName,
-            'Кількість': quantity,
-            'Одиниця': unit,
-            'Коментар': comment
-        };
+        return { id, dishId, 'Продукт': productName, 'Кількість': quantity, 'Одиниця': unit, 'Коментар': comment };
     }
     function getInitialData() {
         const database = getDatabase();
@@ -95,7 +74,6 @@ window.MenuStorage = (() => {
             products: database.products,
             archivedDishes: database.archivedDishes,
             archivedProducts: database.archivedProducts,
-            tags: database.tags,
             state: normalizeState(database.state, database.dishes)
         });
     }
@@ -115,21 +93,21 @@ window.MenuStorage = (() => {
     function saveDish(dish, products) {
         const database = getDatabase();
         const id = dish.id || makeUniqueId(slugify(dish['Страва'] || 'dish'), getAllDishIds(database));
-        const normalizedDish = normalizeDish({ ...dish, id }, database);
+        const knownTags = collectSourceTags([...database.dishes, ...database.archivedDishes, dish]);
+        const normalizedDish = normalizeDish({ ...dish, id }, database, knownTags);
         const index = database.dishes.findIndex(item => item.id === normalizedDish.id);
         if (index >= 0) database.dishes[index] = normalizedDish;
         else database.dishes.push(normalizedDish);
-        database.tags.dishTags[normalizedDish.id] = getSourceDishTags(dish, database.tags.items, database.tags.dishTags[normalizedDish.id]);
         database.products = database.products.filter(product => product.dishId !== normalizedDish.id);
         database.products.push(...normalizeProducts(products, normalizedDish.id, database));
-        database.tags = pruneTagsContainer(database.tags, database);
         saveDatabase(database);
         return clone(normalizedDish);
     }
     function saveTags(tags) {
+        const allowedTags = new Set(normalizeTags(tags));
         const database = getDatabase();
-        database.tags.items = normalizeTags(tags);
-        database.tags = pruneTagsContainer(database.tags, database);
+        database.dishes = database.dishes.map(dish => ({ ...dish, tags: normalizeTags(dish.tags).filter(tag => allowedTags.has(tag)) }));
+        database.archivedDishes = database.archivedDishes.map(dish => ({ ...dish, tags: normalizeTags(dish.tags).filter(tag => allowedTags.has(tag)) }));
         saveDatabase(database);
     }
     function archiveDish(dishId) {
@@ -142,7 +120,6 @@ window.MenuStorage = (() => {
         database.archivedDishes.push({ ...dish, archivedAt: new Date().toISOString() });
         database.archivedProducts.push(...products);
         database.state.selectedDishIds = database.state.selectedDishIds.filter(id => id !== dishId);
-        database.tags = pruneTagsContainer(database.tags, database);
         saveDatabase(database);
     }
     function restoreDish(dishId) {
@@ -155,16 +132,12 @@ window.MenuStorage = (() => {
         database.archivedProducts = database.archivedProducts.filter(product => product.dishId !== dishId);
         database.dishes.push(dish);
         database.products.push(...products);
-        database.tags = pruneTagsContainer(database.tags, database);
         saveDatabase(database);
     }
     function clearArchive() {
         const database = getDatabase();
-        const archivedIds = new Set(database.archivedDishes.map(dish => dish.id));
         database.archivedDishes = [];
         database.archivedProducts = [];
-        archivedIds.forEach(id => delete database.tags.dishTags[id]);
-        database.tags = pruneTagsContainer(database.tags, database);
         saveDatabase(database);
     }
     function getDatabase() {
@@ -192,45 +165,43 @@ window.MenuStorage = (() => {
         const tagSource = parseTagsContainer(database.tags);
         const sourceDishes = Array.isArray(database.dishes) ? database.dishes : [];
         const sourceArchivedDishes = Array.isArray(database.archivedDishes) ? database.archivedDishes : [];
-        const tagItems = tagSource.hasItems
-            ? tagSource.items
-            : normalizeTags([...DEFAULT_TAGS, ...collectSourceTags([...sourceDishes, ...sourceArchivedDishes])]);
-        const sourceDishTags = { ...tagSource.dishTags };
+        const sourceDishTags = normalizeDishTagsMap(tagSource.dishTags);
+        const sourceAllDishes = [...sourceDishes, ...sourceArchivedDishes];
+        const sourceTags = normalizeTags([...collectSourceTags(sourceAllDishes), ...Object.values(sourceDishTags).flat()]);
+        const migrationTags = sourceTags.length
+            ? normalizeTags([...tagSource.items, ...sourceTags])
+            : tagSource.hasItems
+                ? tagSource.items
+                : DEFAULT_TAGS;
         const migrated = {
             dishes: [],
             products: Array.isArray(database.products) ? database.products : [],
-            tags: { items: tagItems, dishTags: {} },
             archivedDishes: [],
             archivedProducts: Array.isArray(database.archivedProducts) ? database.archivedProducts : [],
             state: database.state || {}
         };
-        migrated.dishes = sourceDishes.map(dish => migrateDish(dish, migrated, tagItems, sourceDishTags));
-        migrated.archivedDishes = sourceArchivedDishes.map(dish => migrateDish(dish, migrated, tagItems, sourceDishTags));
+        migrated.dishes = sourceDishes.map(dish => normalizeDish(dish, migrated, migrationTags, sourceDishTags));
+        migrated.archivedDishes = sourceArchivedDishes.map(dish => normalizeDish(dish, migrated, migrationTags, sourceDishTags));
         migrated.products = migrated.products.map(product => normalizeProduct(product, product.dishId || findDishIdByName(product['Страва'], migrated), migrated));
         migrated.archivedProducts = migrated.archivedProducts.map(product => normalizeProduct(product, product.dishId || findDishIdByName(product['Страва'], migrated), migrated));
         migrated.state = normalizeState(migrated.state, migrated.dishes);
-        migrated.tags = pruneTagsContainer(migrated.tags, migrated);
         return migrated;
     }
-    function migrateDish(dish, database, availableTags, sourceDishTags) {
-        const normalizedDish = normalizeDish(dish, database);
-        const storedTags = sourceDishTags[dish.id] || sourceDishTags[normalizedDish.id];
-        database.tags.dishTags[normalizedDish.id] = getSourceDishTags(dish, availableTags, storedTags);
-        return normalizedDish;
-    }
-    function normalizeDish(dish = {}, database) {
+    function normalizeDish(dish = {}, database, availableTags = collectSourceTags([dish]), sourceDishTags = {}) {
         const id = dish.id || makeUniqueId(slugify(dish['Страва'] || 'dish'), getAllDishIds(database));
         const description = [dish['Опис'], dish['Коментар']]
             .map(value => String(value || '').trim())
             .filter(Boolean)
             .join('\n');
+        const tags = getSourceDishTags(dish, availableTags, sourceDishTags[id] || sourceDishTags[dish.id]);
         const normalized = {
             id,
             'Страва': String(dish['Страва'] || '').trim(),
             'Час хв': toNumberOrEmpty(dish['Час хв']),
             'Останній раз': dish['Останній раз'] || '',
             'Опис': description,
-            'Фото': dish['Фото'] || ''
+            'Фото': dish['Фото'] || '',
+            tags
         };
         if (dish.archivedAt) normalized.archivedAt = dish.archivedAt;
         return normalized;
@@ -274,7 +245,6 @@ window.MenuStorage = (() => {
                     : Object.prototype.hasOwnProperty.call(tags, 'tags')
                         ? tags.tags
                         : undefined;
-
             return {
                 items: normalizeTags(itemsSource),
                 dishTags: normalizeDishTagsMap(tags.dishTags || tags.byDishId || tags.dishes),
@@ -298,7 +268,7 @@ window.MenuStorage = (() => {
         );
     }
     function collectSourceTags(dishes) {
-        return normalizeTags(dishes.flatMap(dish => normalizeTags(dish?.['теги'] || dish?.tags)));
+        return normalizeTags(dishes.flatMap(dish => normalizeTags(dish?.tags || dish?.['теги'])));
     }
     function getSourceDishTags(dish, availableTags, storedTags = []) {
         const hasExplicitTags = Array.isArray(dish?.tags) || Array.isArray(dish?.['теги']);
@@ -307,16 +277,6 @@ window.MenuStorage = (() => {
         const legacyTags = normalizeTags(availableTags.filter(tag => isTrue(dish?.[tag])));
         const tags = hasExplicitTags ? explicitTags : persistedTags.length ? persistedTags : legacyTags;
         return tags.filter(tag => availableTags.includes(tag));
-    }
-    function pruneTagsContainer(tags, database) {
-        const items = normalizeTags(tags.items);
-        const knownDishIds = new Set([...(database.dishes || []), ...(database.archivedDishes || [])].map(dish => dish.id).filter(Boolean));
-        const dishTags = Object.fromEntries(
-            Object.entries(normalizeDishTagsMap(tags.dishTags))
-                .filter(([dishId]) => knownDishIds.has(dishId))
-                .map(([dishId, values]) => [dishId, values.filter(tag => items.includes(tag))])
-        );
-        return { items, dishTags };
     }
     function findDishIdByName(name, database) {
         return [...database.dishes, ...database.archivedDishes].find(dish => dish['Страва'] === name)?.id || '';
@@ -375,5 +335,3 @@ window.MenuStorage = (() => {
         clearArchive
     };
 })();
-
-
