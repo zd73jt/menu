@@ -1,5 +1,6 @@
 window.MenuStorage = (() => {
     const STORAGE_KEY = 'menu-pwa.database.v8';
+    const SHOPPING_STATE_KEY = 'menu-pwa.shopping.checkedProductIds.v1';
     const LEGACY_STORAGE_KEYS = ['menu-pwa.database.v7', 'menu-pwa.database.v6', 'menu-pwa.database.v5'];
     const DEFAULT_TAGS = [
         'сніданок',
@@ -90,6 +91,16 @@ window.MenuStorage = (() => {
         database.state = normalizeState(state, database.dishes);
         saveDatabase(database);
     }
+    function getCheckedProductIds(products = getDatabase().products) {
+        const activeProductIds = new Set(products.map(product => product.id));
+        return readCheckedProductIds().filter(id => activeProductIds.has(id));
+    }
+    function saveCheckedProductIds(productIds) {
+        const activeProductIds = new Set(getDatabase().products.map(product => product.id));
+        const checkedProductIds = [...new Set(Array.isArray(productIds) ? productIds : [])]
+            .filter(id => activeProductIds.has(id));
+        localStorage.setItem(SHOPPING_STATE_KEY, JSON.stringify(checkedProductIds));
+    }
     function saveDish(dish, products) {
         const database = getDatabase();
         const id = dish.id || makeUniqueId(slugify(dish['Страва'] || 'dish'), getAllDishIds(database));
@@ -100,6 +111,8 @@ window.MenuStorage = (() => {
         else database.dishes.push(normalizedDish);
         database.products = database.products.filter(product => product.dishId !== normalizedDish.id);
         database.products.push(...normalizeProducts(products, normalizedDish.id, database));
+        database.state = normalizeState(database.state, database.dishes);
+        pruneCheckedProductIds(database.products);
         saveDatabase(database);
         return clone(normalizedDish);
     }
@@ -119,7 +132,11 @@ window.MenuStorage = (() => {
         database.products = database.products.filter(product => product.dishId !== dishId);
         database.archivedDishes.push({ ...dish, archivedAt: new Date().toISOString() });
         database.archivedProducts.push(...products);
-        database.state.selectedDishIds = database.state.selectedDishIds.filter(id => id !== dishId);
+        database.state = normalizeState({
+            ...database.state,
+            selectedDishIds: database.state.selectedDishIds.filter(id => id !== dishId)
+        }, database.dishes);
+        pruneCheckedProductIds(database.products);
         saveDatabase(database);
     }
     function restoreDish(dishId) {
@@ -160,6 +177,17 @@ window.MenuStorage = (() => {
     }
     function saveDatabase(database) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(database));
+    }
+    function readCheckedProductIds() {
+        try {
+            const value = JSON.parse(localStorage.getItem(SHOPPING_STATE_KEY) || '[]');
+            return Array.isArray(value) ? value : [];
+        } catch (error) {
+            return [];
+        }
+    }
+    function pruneCheckedProductIds(products) {
+        localStorage.setItem(SHOPPING_STATE_KEY, JSON.stringify(getCheckedProductIds(products)));
     }
     function migrate(database) {
         const tagSource = parseTagsContainer(database.tags);
@@ -328,6 +356,8 @@ window.MenuStorage = (() => {
         exportDatabase,
         importDatabase,
         saveState,
+        getCheckedProductIds,
+        saveCheckedProductIds,
         saveDish,
         saveTags,
         archiveDish,
@@ -335,3 +365,5 @@ window.MenuStorage = (() => {
         clearArchive
     };
 })();
+
+

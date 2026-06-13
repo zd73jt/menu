@@ -7,6 +7,7 @@
     let allTags = [];
     let selectedTags = new Set();
     let selectedDishIds = new Set();
+    let checkedProductIds = new Set();
     let currentScreen = 'select';
 
     document.addEventListener('DOMContentLoaded', initApp);
@@ -33,6 +34,7 @@
 
             if (action === 'toggle-tag') toggleTag(tag);
             if (action === 'toggle-dish') toggleDish(dishId);
+            if (action === 'toggle-product') toggleProduct(productId);
             if (action === 'remove-dish') removeDish(dishId);
             if (action === 'clear-selected') clearSelected();
             if (action === 'open-result') openResultScreen();
@@ -117,6 +119,7 @@
                 ? state.selectedDishIds.filter(id => activeDishIds.has(id))
                 : []
         );
+        checkedProductIds = new Set(MenuStorage.getCheckedProductIds(allProducts));
 
         if (selectedDishIds.size === 0) {
             currentScreen = 'select';
@@ -198,6 +201,16 @@
         saveState(MenuI18n.t('loader.selected'));
         renderSelected();
         renderDishes();
+        if (currentScreen === 'result') renderResult();
+    }
+
+    function toggleProduct(productId) {
+        if (!productId) return;
+
+        if (checkedProductIds.has(productId)) checkedProductIds.delete(productId);
+        else checkedProductIds.add(productId);
+
+        MenuStorage.saveCheckedProductIds([...checkedProductIds]);
         if (currentScreen === 'result') renderResult();
     }
 
@@ -345,22 +358,29 @@
         resultContent.innerHTML = selectedDishes.map(dish => {
             const products = allProducts.filter(product => product.dishId === dish.id);
             const productsHtml = products.length
-                ? products.map(product => `
-                    <li>
-                        ${escapeHtml(product['Продукт'])}
-                        ${product['Кількість'] ? ` — ${escapeHtml(product['Кількість'])}` : ''}
-                        ${product['Одиниця'] ? escapeHtml(product['Одиниця']) : ''}
-                    </li>
-                `).join('')
-                : `<li>${escapeHtml(MenuI18n.t('empty.products'))}</li>`;
+                ? `<div class="shopping-list">${products.map(renderShoppingProduct).join('')}</div>`
+                : `<div class="empty">${escapeHtml(MenuI18n.t('empty.products'))}</div>`;
 
             return `
                 <div class="product-block">
                     <div class="title">${escapeHtml(dish['Страва'])}</div>
-                    <ul class="product-list">${productsHtml}</ul>
+                    ${productsHtml}
                 </div>
             `;
         }).join('');
+    }
+
+    function renderShoppingProduct(product) {
+        const isChecked = checkedProductIds.has(product.id);
+        const status = isChecked ? '✅' : '❌';
+        const productText = formatProductLine(product);
+
+        return `
+            <button class="shopping-item ${isChecked ? 'checked' : ''}" type="button" data-action="toggle-product" data-product-id="${escapeHtml(product.id)}" role="checkbox" aria-checked="${isChecked}">
+                <span class="shopping-item-text">${escapeHtml(productText)}</span>
+                <span class="shopping-item-check" aria-hidden="true">${status}</span>
+            </button>
+        `;
     }
 
     function renderManage() {
@@ -864,6 +884,13 @@
         renderScreen();
     }
 
+    function formatProductLine(product) {
+        const name = String(product?.['Продукт'] || '').trim();
+        const quantity = String(product?.['Кількість'] ?? '').trim();
+        const unit = String(product?.['Одиниця'] || '').trim();
+        const amount = [quantity, unit].filter(Boolean).join(' ');
+        return amount ? `${name} — ${amount}` : name;
+    }
     function formatDuration(value) {
         const totalMinutes = Number(value || 0);
 
@@ -978,6 +1005,8 @@
     })();
 
 })();
+
+
 
 
 
