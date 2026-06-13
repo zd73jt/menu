@@ -921,6 +921,27 @@
         });
     }
 
+    // Optional fallback: block double-tap-to-zoom on old iOS where CSS touch-action isn't supported.
+    // This preserves pinch-zoom while preventing accidental double-tap zooms.
+    (function addDoubleTapBlocker() {
+        try {
+            const touchActionSupported = window.CSS && typeof CSS.supports === 'function' && CSS.supports('touch-action', 'manipulation');
+            if (touchActionSupported) return; // modern browsers handle it via CSS
+
+            let lastTouchEnd = 0;
+            document.addEventListener('touchend', function (e) {
+                const now = Date.now();
+                if (now - lastTouchEnd <= 300) {
+                    // double-tap detected — prevent default to stop zoom
+                    e.preventDefault();
+                }
+                lastTouchEnd = now;
+            }, { passive: false });
+        } catch (err) {
+            // fail silently — this script is only an optional enhancement
+        }
+    })();
+
 })();
 
 

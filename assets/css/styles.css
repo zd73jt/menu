@@ -5,6 +5,13 @@ body {
     margin: 0;
 }
 
+/* Prefer touch-action: manipulation on interactive elements to reduce double-tap zoom
+   while keeping other gestures intact on supporting browsers. */
+html, body, a, button, input, textarea {
+    -ms-touch-action: manipulation;
+    touch-action: manipulation;
+}
+
 h1 {
     margin: 0 0 14px;
 }
