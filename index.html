@@ -1,1 +1,145 @@
-hello!
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="app.title">Меню</title>
+    <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+<h1 data-i18n="app.title">Меню</h1>
+
+<main id="app">
+    <section id="selectScreen">
+        <div class="filter">
+            <div class="top-bar compact">
+                <div>
+                    <div class="section-title" data-i18n="tags.title">Теги</div>
+                    <div id="counter" class="counter"></div>
+                </div>
+                <button class="button secondary" type="button" data-action="open-manage" data-i18n="button.manage">Редагувати меню</button>
+            </div>
+            <div id="tagSelector" class="tags">
+                <div class="loader" data-i18n="loader.tags">Завантаження тегів...</div>
+            </div>
+        </div>
+
+        <div class="selected-panel">
+            <div class="selected-header">
+                <div class="section-title" data-i18n="selected.title">Обрані страви</div>
+                <button id="clearButton" class="button secondary" type="button" data-action="clear-selected" data-i18n="button.clear">Очистити</button>
+            </div>
+
+            <div id="selectedList" class="selected-list">
+                <div class="loader" data-i18n="loader.selected">Завантаження вибраного...</div>
+            </div>
+
+            <button id="chooseButton" class="button" type="button" data-action="open-result" data-i18n="button.choose">
+                Вибрати
+            </button>
+
+            <div id="saveStatus" class="saving hidden"></div>
+        </div>
+
+        <div id="content">
+            <div class="loader" data-i18n="loader.dishes">Завантаження страв...</div>
+        </div>
+    </section>
+
+    <section id="resultScreen" class="hidden">
+        <div class="screen-panel">
+            <div class="top-bar">
+                <div class="section-title" data-i18n="result.title">Вибрані страви і продукти</div>
+                <button class="button secondary" type="button" data-action="back-to-select" data-i18n="button.back">Повернутись</button>
+            </div>
+
+            <div id="resultContent">
+                <div class="loader" data-i18n="loader.products">Завантаження продуктів...</div>
+            </div>
+        </div>
+    </section>
+
+    <section id="manageScreen" class="hidden">
+        <div class="screen-panel">
+            <div class="top-bar">
+                <div class="section-title" data-i18n="manage.title">Керування стравами</div>
+                <button class="button secondary" type="button" data-action="back-to-select" data-i18n="button.back">Повернутись</button>
+            </div>
+            <div class="actions-row">
+                <button class="button" type="button" data-action="add-dish" data-i18n="button.addDish">Додати страву</button>
+                <button class="button secondary" type="button" data-action="open-tags-manage" data-i18n="button.manageTags">Редагувати теги</button>
+                <button class="button secondary" type="button" data-action="open-archive" data-i18n="button.archive">Архів</button>
+                <button class="button secondary" type="button" data-action="export-data" data-i18n="button.export">Експорт</button>
+                <button class="button secondary" type="button" data-action="import-data" data-i18n="button.import">Імпорт</button>
+            </div>
+            <div id="manageContent"></div>
+        </div>
+    </section>
+
+    <section id="dataScreen" class="hidden">
+        <div class="screen-panel">
+            <div class="top-bar">
+                <div class="section-title" data-i18n="import.title">Імпорт JSON</div>
+                <button class="button secondary" type="button" data-action="open-manage" data-i18n="button.back">Повернутись</button>
+            </div>
+            <label class="json-field" for="importJsonTextarea">
+                <span data-i18n="field.jsonData">JSON дані</span>
+                <textarea id="importJsonTextarea" spellcheck="false"></textarea>
+            </label>
+            <div class="actions-row">
+                <button class="button" type="button" data-action="apply-import-json" data-i18n="button.loadJson">Завантажити</button>
+                <button class="button secondary" type="button" data-action="choose-import-file" data-i18n="button.chooseFile">Вибрати файл</button>
+                <input id="importFileInput" class="hidden" type="file" accept="application/json,.json">
+            </div>
+            <div id="importStatus" class="saving hidden"></div>
+        </div>
+    </section>
+
+    <section id="tagsManageScreen" class="hidden">
+        <div class="screen-panel">
+            <div class="top-bar">
+                <div class="section-title" data-i18n="tags.manageTitle">Редагування тегів</div>
+                <button class="button secondary" type="button" data-action="open-manage" data-i18n="button.back">Повернутись</button>
+            </div>
+            <form id="tagForm" class="tag-form">
+                <div class="tag-form-field">
+                    <label for="newTagInput" data-i18n="field.newTag">Новий тег</label>
+                    <div class="tag-add-row">
+                        <input id="newTagInput" name="newTag" autocomplete="off">
+                        <button class="button" type="submit" data-i18n="button.addTag">Додати тег</button>
+                    </div>
+                </div>
+            </form>
+            <div id="tagsManageContent"></div>
+        </div>
+    </section>
+
+    <section id="editDishScreen" class="hidden">
+        <div class="screen-panel">
+            <div class="top-bar">
+                <div id="editDishTitle" class="section-title"></div>
+                <button class="button secondary" type="button" data-action="open-manage" data-i18n="button.cancel">Скасувати</button>
+            </div>
+            <div id="editDishContent"></div>
+        </div>
+    </section>
+
+    <section id="archiveScreen" class="hidden">
+        <div class="screen-panel">
+            <div class="top-bar">
+                <div class="section-title" data-i18n="archive.title">Архів</div>
+                <button class="button secondary" type="button" data-action="open-manage" data-i18n="button.back">Повернутись</button>
+            </div>
+            <div class="actions-row">
+                <button class="button danger" type="button" data-action="clear-archive" data-i18n="button.clearArchive">Очистити архів</button>
+            </div>
+            <div id="archiveContent"></div>
+        </div>
+    </section>
+</main>
+
+<script src="assets/js/storage.js"></script>
+<script src="assets/js/i18n.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>
